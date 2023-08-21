@@ -4,6 +4,20 @@ use std::io::prelude::*;
 use std::fs::File;
 */
 
+/*
+Te0[x] = S [x].[02, 01, 01, 03];
+Te1[x] = S [x].[03, 02, 01, 01];
+Te2[x] = S [x].[01, 03, 02, 01];
+Te3[x] = S [x].[01, 01, 03, 02];
+Te4[x] = S [x].[01, 01, 01, 01];
+
+Td0[x] = Si[x].[0e, 09, 0d, 0b];
+Td1[x] = Si[x].[0b, 0e, 09, 0d];
+Td2[x] = Si[x].[0d, 0b, 0e, 09];
+Td3[x] = Si[x].[09, 0d, 0b, 0e];
+Td4[x] = Si[x].[01, 01, 01, 01];
+*/
+
 static TE0: [u32; 256] = [
     0xc66363a5, 0xf87c7c84, 0xee777799, 0xf67b7b8d, 0xfff2f20d, 0xd66b6bbd, 0xde6f6fb1, 0x91c5c554,
     0x60303050, 0x02010103, 0xce6767a9, 0x562b2b7d, 0xe7fefe19, 0xb5d7d762, 0x4dababe6, 0xec76769a,
@@ -365,7 +379,7 @@ macro_rules! put_u32 {
     };
 }
 
-fn rijndael_key_setup_enc(rk: &mut [u32], mut cipher_key: &[bool], key_bits: u32) -> u32 {
+fn rijndael_key_setup_enc(rk: &mut [u32], mut cipher_key: &[u8], key_bits: u32) -> usize {
     let mut i: usize = 0;
     let mut temp: usize;
     let mut index: usize = 0;
@@ -374,14 +388,15 @@ fn rijndael_key_setup_enc(rk: &mut [u32], mut cipher_key: &[bool], key_bits: u32
     rk[1] = get_u32!(cipher_key[4..8]);
     rk[2] = get_u32!(cipher_key[8..12]);
     rk[3] = get_u32!(cipher_key[12..16]);
+
     if key_bits == 128 {
         loop {
             temp = rk[3 + index] as usize;
-            rk[4] = rk[0]
-                ^ (TE4[(temp >> 16) & 0xff] & 0xff000000)
-                ^ (TE4[(temp >> 16) & 0xff] & 0x00ff0000)
-                ^ (TE4[(temp >> 16) & 0xff] & 0x0000ff00)
-                ^ (TE4[(temp >> 16) & 0xff] & 0xff0000ff)
+            rk[4 + index] = rk[index]
+                ^ (TE4[((temp >> 16) as u32 & 0xff) as usize] & 0xff000000)
+                ^ (TE4[((temp >>  8) as u32 & 0xff) as usize] & 0x00ff0000)
+                ^ (TE4[((temp      ) as u32 & 0xff) as usize] & 0x0000ff00)
+                ^ (TE4[(temp >> 24)] & 0x000000ff)
                 ^ RCON[i];
             rk[5 + index] = rk[1 + index] ^ rk[4 + index];
             rk[6 + index] = rk[2 + index] ^ rk[5 + index];
@@ -452,6 +467,63 @@ fn rijndael_key_setup_enc(rk: &mut [u32], mut cipher_key: &[bool], key_bits: u32
     return 0;
 }
 
+/**
+ * Expand the cipher key into the decryption key schedule.
+ *
+ * @return	the number of rounds for the given cipher key size.
+ */
+ fn rijndael_key_setup_dec(rk: &mut [u32], mut cipher_key: &[u8], key_bits: u32) -> usize {
+    let mut nr: usize; 
+    let mut i: usize; 
+    let mut j: usize;
+	let mut temp: usize;
+
+	/* expand the cipher key: */
+	nr = rijndael_key_setup_enc(rk, cipher_key, key_bits);
+	/* invert the order of the round keys: */
+    i = 0;
+    j = 4*nr as usize;
+	while i < j {
+		temp = rk[i    ] as usize; rk[i    ] = rk[j    ]; rk[j    ] = temp as u32;
+		temp = rk[i + 1] as usize; rk[i + 1] = rk[j + 1]; rk[j + 1] = temp as u32;
+		temp = rk[i + 2] as usize; rk[i + 2] = rk[j + 2]; rk[j + 2] = temp as u32;
+		temp = rk[i + 3] as usize; rk[i + 3] = rk[j + 3]; rk[j + 3] = temp as u32;
+        
+        i += 4; 
+        j -= 4;
+    }
+	/* apply the inverse MixColumn transform to all round keys but the first and the last: */
+	i = 1;
+
+    let mut index: usize = 0;
+    while i < nr {
+		index += 4;
+		rk[index] =
+			TD0[(TE4[(rk[index] >> 24) as usize ] & 0xff) as usize] ^
+			TD1[(TE4[(rk[index] >> 16) as usize & 0xff] & 0xff) as usize] ^
+			TD2[(TE4[(rk[index] >>  8) as usize & 0xff] & 0xff) as usize] ^
+			TD3[(TE4[(rk[index]      ) as usize & 0xff] & 0xff) as usize];
+		rk[1] =
+            TD0[(TE4[(rk[index + 1] >> 24) as usize ] & 0xff) as usize] ^
+            TD1[(TE4[(rk[index + 1] >> 16) as usize & 0xff] & 0xff) as usize] ^
+            TD2[(TE4[(rk[index + 1] >>  8) as usize & 0xff] & 0xff) as usize] ^
+            TD3[(TE4[(rk[index + 1]      ) as usize & 0xff] & 0xff) as usize];
+		rk[2] =
+            TD0[(TE4[(rk[index + 2] >> 24) as usize ] & 0xff) as usize] ^
+            TD1[(TE4[(rk[index + 2] >> 16) as usize & 0xff] & 0xff) as usize] ^
+            TD2[(TE4[(rk[index + 2] >>  8) as usize & 0xff] & 0xff) as usize] ^
+            TD3[(TE4[(rk[index + 2]      ) as usize & 0xff] & 0xff) as usize];
+		rk[3] =
+            TD0[(TE4[(rk[index + 3] >> 24) as usize ] & 0xff) as usize] ^
+            TD1[(TE4[(rk[index + 3] >> 16) as usize & 0xff] & 0xff) as usize] ^
+            TD2[(TE4[(rk[index + 3] >>  8) as usize & 0xff] & 0xff) as usize] ^
+            TD3[(TE4[(rk[index + 3]      ) as usize & 0xff] & 0xff) as usize];
+
+        i += 1;
+	}
+	return nr;
+}
+
 fn main() -> io::Result<()> {
     /*
     println!("{}", std::env::current_dir().unwrap().display());
@@ -484,10 +556,11 @@ fn main() -> io::Result<()> {
     output.write_all(&buffer)?;
     */
 
-    let mut key: &[bool] = &[false; 32];
+    let mut key: &[u8] = &[0; 32];
     let mut rk: &mut [u32] = &mut[0; 64];
-    let mut test: u32 = rijndael_key_setup_enc(rk, &key, 128);
-    print!("{}", test);
+
+    let mut test: usize = rijndael_key_setup_enc(rk, &key, 128);
+    test = rijndael_key_setup_dec(rk, &key, 128);
 
     Ok(())
 }
