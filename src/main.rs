@@ -11,11 +11,11 @@ Te2[x] = S [x].[01, 03, 02, 01];
 Te3[x] = S [x].[01, 01, 03, 02];
 Te4[x] = S [x].[01, 01, 01, 01];
 
-Td0[x] = Si[x].[0e, 09, 0d, 0b];
-Td1[x] = Si[x].[0b, 0e, 09, 0d];
-Td2[x] = Si[x].[0d, 0b, 0e, 09];
-Td3[x] = Si[x].[09, 0d, 0b, 0e];
-Td4[x] = Si[x].[01, 01, 01, 01];
+TD0[x] = Si[x].[0e, 09, 0d, 0b];
+TD1[x] = Si[x].[0b, 0e, 09, 0d];
+TD2[x] = Si[x].[0d, 0b, 0e, 09];
+TD3[x] = Si[x].[09, 0d, 0b, 0e];
+TD4[x] = Si[x].[01, 01, 01, 01];
 */
 
 static TE0: [u32; 256] = [
@@ -372,14 +372,14 @@ macro_rules! get_u32 {
 
 macro_rules! put_u32 {
     ($ct:expr, $st:expr) => {
-        ($ct)[0] = ($st) >> 24;
-        ($ct)[1] = ($st) >> 16;
-        ($ct)[2] = ($st) >> 8;
-        ($ct)[3] = $st;
+        ($ct)[0] = (($st) >> 24) as u8;
+        ($ct)[1] = (($st) >> 16) as u8;
+        ($ct)[2] = (($st) >> 8) as u8;
+        ($ct)[3] = $st as u8;
     };
 }
 
-fn rijndael_key_setup_enc(rk: &mut [u32], mut cipher_key: &[u8], key_bits: u32) -> usize {
+fn rijndael_key_setup_enc(rk: &mut [u32], cipher_key: &[u8], key_bits: u32) -> usize {
     let mut i: usize = 0;
     let mut temp: usize;
     let mut index: usize = 0;
@@ -472,11 +472,11 @@ fn rijndael_key_setup_enc(rk: &mut [u32], mut cipher_key: &[u8], key_bits: u32) 
  *
  * @return	the number of rounds for the given cipher key size.
  */
- fn rijndael_key_setup_dec(rk: &mut [u32], mut cipher_key: &[u8], key_bits: u32) -> usize {
+ fn rijndael_key_setup_dec(rk: &mut [u32], cipher_key: &[u8], key_bits: u32) -> usize {
     let mut nr: usize; 
     let mut i: usize; 
     let mut j: usize;
-	let mut temp: usize;
+	let mut temp: u32;
 
 	/* expand the cipher key: */
 	nr = rijndael_key_setup_enc(rk, cipher_key, key_bits);
@@ -484,10 +484,10 @@ fn rijndael_key_setup_enc(rk: &mut [u32], mut cipher_key: &[u8], key_bits: u32) 
     i = 0;
     j = 4*nr as usize;
 	while i < j {
-		temp = rk[i    ] as usize; rk[i    ] = rk[j    ]; rk[j    ] = temp as u32;
-		temp = rk[i + 1] as usize; rk[i + 1] = rk[j + 1]; rk[j + 1] = temp as u32;
-		temp = rk[i + 2] as usize; rk[i + 2] = rk[j + 2]; rk[j + 2] = temp as u32;
-		temp = rk[i + 3] as usize; rk[i + 3] = rk[j + 3]; rk[j + 3] = temp as u32;
+		temp = rk[i    ]; rk[i    ] = rk[j    ]; rk[j    ] = temp;
+		temp = rk[i + 1]; rk[i + 1] = rk[j + 1]; rk[j + 1] = temp;
+		temp = rk[i + 2]; rk[i + 2] = rk[j + 2]; rk[j + 2] = temp;
+		temp = rk[i + 3]; rk[i + 3] = rk[j + 3]; rk[j + 3] = temp;
         
         i += 4; 
         j -= 4;
@@ -503,17 +503,17 @@ fn rijndael_key_setup_enc(rk: &mut [u32], mut cipher_key: &[u8], key_bits: u32) 
 			TD1[(TE4[(rk[index] >> 16) as usize & 0xff] & 0xff) as usize] ^
 			TD2[(TE4[(rk[index] >>  8) as usize & 0xff] & 0xff) as usize] ^
 			TD3[(TE4[(rk[index]      ) as usize & 0xff] & 0xff) as usize];
-		rk[1] =
+		rk[1 + index] =
             TD0[(TE4[(rk[index + 1] >> 24) as usize ] & 0xff) as usize] ^
             TD1[(TE4[(rk[index + 1] >> 16) as usize & 0xff] & 0xff) as usize] ^
             TD2[(TE4[(rk[index + 1] >>  8) as usize & 0xff] & 0xff) as usize] ^
             TD3[(TE4[(rk[index + 1]      ) as usize & 0xff] & 0xff) as usize];
-		rk[2] =
+		rk[2 + index] =
             TD0[(TE4[(rk[index + 2] >> 24) as usize ] & 0xff) as usize] ^
             TD1[(TE4[(rk[index + 2] >> 16) as usize & 0xff] & 0xff) as usize] ^
             TD2[(TE4[(rk[index + 2] >>  8) as usize & 0xff] & 0xff) as usize] ^
             TD3[(TE4[(rk[index + 2]      ) as usize & 0xff] & 0xff) as usize];
-		rk[3] =
+		rk[3 + index] =
             TD0[(TE4[(rk[index + 3] >> 24) as usize ] & 0xff) as usize] ^
             TD1[(TE4[(rk[index + 3] >> 16) as usize & 0xff] & 0xff) as usize] ^
             TD2[(TE4[(rk[index + 3] >>  8) as usize & 0xff] & 0xff) as usize] ^
@@ -522,6 +522,242 @@ fn rijndael_key_setup_enc(rk: &mut [u32], mut cipher_key: &[u8], key_bits: u32) 
         i += 1;
 	}
 	return nr;
+}
+
+fn rijndael_encrypt_not_full_unroll(rk: &[u32], nr: u32, pt: &mut [u8; 16], ct: &mut [u8; 16]) {
+	let mut s0: u32;
+    let mut s1: u32;
+    let mut s2: u32; 
+    let mut s3: u32; 
+    let mut t0: u32; 
+    let mut t1: u32; 
+    let mut t2: u32; 
+    let mut t3: u32;
+    let mut r: u32;
+    let mut index: usize = 0;
+
+    /*
+	 * map byte array block to cipher state
+	 * and add initial round key:
+	 */
+	s0 = get_u32!(pt     ) ^ rk[0];
+	s1 = get_u32!(pt[4..8]) ^ rk[1];
+	s2 = get_u32!(pt[8..12]) ^ rk[2];
+	s3 = get_u32!(pt[12..16]) ^ rk[3];
+
+    /*
+	 * nr - 1 full rounds:
+	 */
+    r = nr >> 1;
+    loop {
+        t0 =
+            TE0[(s0 >> 24) as usize         ] ^
+            TE1[((s1 >> 16) & 0xff) as usize] ^
+            TE2[((s2 >>  8) & 0xff) as usize] ^
+            TE3[((s3      ) & 0xff) as usize] ^
+            rk[4 + index];
+        t1 =
+            TE0[(s1 >> 24) as usize      ] ^
+            TE1[((s2 >> 16) & 0xff) as usize] ^
+            TE2[((s3 >>  8) & 0xff) as usize] ^
+            TE3[((s0      ) & 0xff) as usize] ^
+            rk[5 + index];
+        t2 =
+            TE0[(s2 >> 24) as usize      ] ^
+            TE1[((s3 >> 16) & 0xff) as usize] ^
+            TE2[((s0 >>  8) & 0xff) as usize] ^
+            TE3[((s1      ) & 0xff) as usize] ^
+            rk[6 + index];
+        t3 =
+            TE0[(s3 >> 24) as usize] ^
+            TE1[((s0 >> 16) & 0xff) as usize] ^
+            TE2[((s1 >>  8) & 0xff) as usize] ^
+            TE3[((s2      ) & 0xff) as usize] ^
+            rk[7 + index];
+
+        index += 8;
+        
+        r -= 1;
+        if r == 0 {
+            break;
+        }
+
+        s0 =
+            TE0[(t0 >> 24) as usize      ] ^
+            TE1[((t1 >> 16) & 0xff) as usize] ^
+            TE2[((t2 >>  8) & 0xff) as usize] ^
+            TE3[((t3      ) & 0xff) as usize] ^
+            rk[0 + index];
+        s1 =
+            TE0[(t1 >> 24) as usize      ] ^
+            TE1[((t2 >> 16) & 0xff) as usize] ^
+            TE2[((t3 >>  8) & 0xff) as usize] ^
+            TE3[((t0      ) & 0xff) as usize] ^
+            rk[1 + index];
+        s2 =
+            TE0[(t2 >> 24) as usize     ] ^
+            TE1[((t3 >> 16) & 0xff) as usize] ^
+            TE2[((t0 >>  8) & 0xff) as usize] ^
+            TE3[((t1      ) & 0xff) as usize] ^
+            rk[2 + index];
+        s3 =
+            TE0[(t3 >> 24) as usize      ] ^
+            TE1[((t0 >> 16) & 0xff) as usize] ^
+            TE2[((t1 >>  8) & 0xff) as usize] ^
+            TE3[((t2      ) & 0xff) as usize] ^
+            rk[3 + index];
+    }
+
+    /*
+	 * apply last round and
+	 * map cipher state to byte array block:
+	 */
+	s0 =
+		(TE4[(t0 >> 24) as usize      ] & 0xff000000) ^
+		(TE4[((t1 >> 16) & 0xff) as usize] & 0x00ff0000) ^
+		(TE4[((t2 >>  8) & 0xff) as usize] & 0x0000ff00) ^
+		(TE4[((t3      ) & 0xff) as usize] & 0x000000ff) ^
+		rk[0+index];
+	put_u32!(ct     , s0);
+	s1 =
+		(TE4[(t1 >> 24) as usize       ] & 0xff000000) ^
+		(TE4[((t2 >> 16) & 0xff) as usize] & 0x00ff0000) ^
+		(TE4[((t3 >>  8) & 0xff) as usize] & 0x0000ff00) ^
+		(TE4[((t0      ) & 0xff) as usize] & 0x000000ff) ^
+		rk[1+index];
+	put_u32!(ct[4..8], s1);
+	s2 =
+		(TE4[(t2 >> 24) as usize      ] & 0xff000000) ^
+		(TE4[((t3 >> 16) & 0xff) as usize ] & 0x00ff0000) ^
+		(TE4[((t0 >>  8) & 0xff) as usize ] & 0x0000ff00) ^
+		(TE4[((t1      ) & 0xff) as usize ] & 0x000000ff) ^
+		rk[2+index];
+	put_u32!(ct[8..12], s2);
+	s3 =
+		(TE4[(t3 >> 24)        as usize ] & 0xff000000) ^
+		(TE4[((t0 >> 16) & 0xff) as usize ] & 0x00ff0000) ^
+		(TE4[((t1 >>  8) & 0xff) as usize ] & 0x0000ff00) ^
+		(TE4[((t2      ) & 0xff) as usize ] & 0x000000ff) ^
+		rk[3+index];
+	put_u32!(ct[12..16], s3);
+}
+
+fn rijndael_decrypt_not_full_unroll(rk: &[u32], nr: u32, ct: &mut [u8; 16], pt: &mut [u8; 16]) {
+	let mut s0: u32;
+    let mut s1: u32; 
+    let mut s2: u32;
+    let mut s3: u32;
+    let mut t0: u32; 
+    let mut t1: u32;
+    let mut t2: u32;
+    let mut t3: u32;
+    let mut r: u32;
+    let mut index: usize = 0;
+
+    /*
+	 * map byte array block to cipher state
+	 * and add initial round key:
+	 */
+    s0 = get_u32!(ct     ) ^ rk[0];
+    s1 = get_u32!(ct[4..8]) ^ rk[1];
+    s2 = get_u32!(ct[8..12]) ^ rk[2];
+    s3 = get_u32!(ct[12..16]) ^ rk[3];
+
+    /*
+     * nr - 1 full rounds:
+     */
+    r = nr >> 1;
+    loop {
+        t0 =
+            TD0[(s0 >> 24) as usize      ] ^
+            TD1[((s3 >> 16) & 0xff) as usize] ^
+            TD2[((s2 >>  8) & 0xff) as usize] ^
+            TD3[((s1      ) & 0xff) as usize] ^
+            rk[4 + index];
+        t1 =
+            TD0[(s1 >> 24) as usize      ] ^
+            TD1[((s0 >> 16) & 0xff) as usize] ^
+            TD2[((s3 >>  8) & 0xff) as usize] ^
+            TD3[((s2      ) & 0xff) as usize] ^
+            rk[5 + index];
+        t2 =
+            TD0[(s2 >> 24) as usize      ] ^
+            TD1[((s1 >> 16) & 0xff) as usize] ^
+            TD2[((s0 >>  8) & 0xff) as usize] ^
+            TD3[((s3      ) & 0xff) as usize] ^
+            rk[6 + index];
+        t3 =
+            TD0[(s3 >> 24) as usize      ] ^
+            TD1[((s2 >> 16) & 0xff) as usize] ^
+            TD2[((s1 >>  8) & 0xff) as usize] ^
+            TD3[((s0      ) & 0xff) as usize] ^
+            rk[7 + index];
+
+        index += 8;
+    
+        r -= 1;
+        if r == 0 {
+            break;
+        }
+
+        s0 =
+            TD0[(t0 >> 24) as usize      ] ^
+            TD1[((t3 >> 16) & 0xff) as usize] ^
+            TD2[((t2 >>  8) & 0xff) as usize] ^
+            TD3[((t1      ) & 0xff) as usize] ^
+            rk[0 + index];
+        s1 =
+            TD0[(t1 >> 24) as usize      ] ^
+            TD1[((t0 >> 16) & 0xff) as usize] ^
+            TD2[((t3 >>  8) & 0xff) as usize] ^
+            TD3[((t2      ) & 0xff) as usize] ^
+            rk[1 + index];
+        s2 =
+            TD0[(t2 >> 24) as usize      ] ^
+            TD1[((t1 >> 16) & 0xff) as usize] ^
+            TD2[((t0 >>  8) & 0xff) as usize] ^
+            TD3[((t3      ) & 0xff) as usize] ^
+            rk[2 + index];
+        s3 =
+            TD0[(t3 >> 24) as usize      ] ^
+            TD1[((t2 >> 16) & 0xff) as usize] ^
+            TD2[((t1 >>  8) & 0xff) as usize] ^
+            TD3[((t0      ) & 0xff) as usize] ^
+            rk[3 + index];
+    }
+
+    /*
+	 * apply last round and
+	 * map cipher state to byte array block:
+	 */
+   	s0 =
+   		(TD4[(t0 >> 24) as usize       ] & 0xff000000) ^
+   		(TD4[((t3 >> 16) & 0xff) as usize] & 0x00ff0000) ^
+   		(TD4[((t2 >>  8) & 0xff) as usize] & 0x0000ff00) ^
+   		(TD4[((t1      ) & 0xff) as usize] & 0x000000ff) ^
+   		rk[0+index];
+	put_u32!(pt     , s0);
+   	s1 =
+   		(TD4[(t1 >> 24) as usize      ] & 0xff000000) ^
+   		(TD4[((t0 >> 16) & 0xff) as usize] & 0x00ff0000) ^
+   		(TD4[((t3 >>  8) & 0xff) as usize] & 0x0000ff00) ^
+   		(TD4[((t2      ) & 0xff) as usize] & 0x000000ff) ^
+   		rk[1+index];
+	put_u32!(pt[4..8], s1);
+   	s2 =
+   		(TD4[(t2 >> 24) as usize      ] & 0xff000000) ^
+   		(TD4[((t1 >> 16) & 0xff) as usize] & 0x00ff0000) ^
+   		(TD4[((t0 >>  8) & 0xff) as usize] & 0x0000ff00) ^
+   		(TD4[((t3      ) & 0xff) as usize] & 0x000000ff) ^
+   		rk[2+index];
+	put_u32!(pt[8..12], s2);
+   	s3 =
+   		(TD4[(t3 >> 24) as usize       ] & 0xff000000) ^
+   		(TD4[((t2 >> 16) & 0xff) as usize] & 0x00ff0000) ^
+   		(TD4[((t1 >>  8) & 0xff) as usize] & 0x0000ff00) ^
+   		(TD4[((t0      ) & 0xff) as usize] & 0x000000ff) ^
+   		rk[3+index];
+	put_u32!(pt[12..16], s3);
 }
 
 fn main() -> io::Result<()> {
@@ -556,11 +792,20 @@ fn main() -> io::Result<()> {
     output.write_all(&buffer)?;
     */
 
-    let mut key: &[u8] = &[0; 32];
-    let mut rk: &mut [u32] = &mut[0; 64];
+    let mut key: &[u8] = &[0; 16];
+    let rk: &mut [u32] = &mut[0; 44];
+    let mut ct: &mut [u8; 16] = &mut [0; 16];
+    let mut pt: &mut [u8; 16] = &mut [0; 16];
 
-    let mut test: usize = rijndael_key_setup_enc(rk, &key, 128);
-    test = rijndael_key_setup_dec(rk, &key, 128);
+    let mut nr: usize = rijndael_key_setup_enc(rk, &key, 128);
+    rijndael_encrypt_not_full_unroll(rk, nr as u32, ct, pt);
+
+    for i in 0..16 {
+        ct[i] = pt[i];
+    }
+
+    nr = rijndael_key_setup_dec(rk, &key, 128);
+    rijndael_decrypt_not_full_unroll(rk , nr as u32, ct, pt);
 
     Ok(())
 }
